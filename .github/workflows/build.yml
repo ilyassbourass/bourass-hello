@@ -24,6 +24,23 @@ jobs:
             -configuration Release \
             CODE_SIGNING_ALLOWED=NO \
             -derivedDataPath build
+      - name: Run in simulator and screenshot
+        run: |
+          UDID=$(xcrun simctl list devices available | grep -m 1 "iPhone" | grep -Eo '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}')
+          echo "SIM: $UDID"
+          xcrun simctl boot "$UDID" || true
+          APP=$(find build/Build/Products -maxdepth 2 -name "*.app" | head -1)
+          echo "App: $APP"
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch "$UDID" com.bourass.hello || true
+          sleep 5
+          xcrun simctl io "$UDID" screenshot screenshot.png
+          xcrun simctl shutdown "$UDID" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simulator-screenshot
+          path: screenshot.png
+          retention-days: 7
 
   device-build:
     name: Build unsigned IPA for Sideloadly
