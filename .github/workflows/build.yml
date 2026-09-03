@@ -1,0 +1,61 @@
+name: Build iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  simulator-check:
+    name: Build check no signing
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - run: |
+          xcodebuild build \
+            -project BourassHello.xcodeproj \
+            -scheme BourassHello \
+            -sdk iphonesimulator \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath build
+
+  device-build:
+    name: Build unsigned IPA for Sideloadly
+    runs-on: macos-14
+    needs: simulator-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: Build for real iPhone signing disabled
+        run: |
+          xcodebuild build \
+            -project BourassHello.xcodeproj \
+            -scheme BourassHello \
+            -sdk iphoneos \
+            -configuration Release \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath buildDevice
+      - name: Package unsigned IPA
+        run: |
+          APP=$(find buildDevice/Build/Products -maxdepth 2 -name "*.app" | head -1)
+          echo "App: $APP"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -r BourassHello-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BourassHello-unsigned-ipa
+          path: BourassHello-unsigned.ipa
+          retention-days: 30
