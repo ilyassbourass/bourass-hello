@@ -48,11 +48,11 @@ struct ContentView: View {
 
                 Text("BOURASS")
                     .font(.system(size: 20, weight: .heavy, design: .rounded))
-                    .letterSpacing(8)
+                    .tracking(8)
                     .foregroundStyle(
                         LinearGradient(colors: [Color(red: 1.0, green: 0.84, blue: 0.35), Color(red: 1.0, green: 0.6, blue: 0.1)], startPoint: .leading, endPoint: .trailing)
                     )
-                    .padding(.bottom, 24)
+                    .padding(Edge.Set.bottom, 24)
             }
         }
     }
