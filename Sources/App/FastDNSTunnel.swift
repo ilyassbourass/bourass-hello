@@ -121,6 +121,7 @@ public class FastDNSTunnel: ObservableObject {
 
         self.sockfd = activeFd
         self.serverIP = connectedIP
+        let fd = activeFd
 
         // 1. Build Handshake DNS Query
         DispatchQueue.main.async { self.statusMessage = "Sending Handshake..." }
