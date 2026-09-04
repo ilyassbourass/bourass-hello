@@ -18,6 +18,13 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Bourass Hello requires local networking for the FastDNS in-app SOCKS proxy.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

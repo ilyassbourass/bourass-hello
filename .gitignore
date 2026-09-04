@@ -5,3 +5,7 @@ DerivedData/
 Payload/
 *.ipa
 .DS_Store
+dist/
+dist_new/
+ipa_check/
+shot/
