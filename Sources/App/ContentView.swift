@@ -72,7 +72,7 @@ struct ContentView: View {
             let p = FastDNSProxyServer(tunnel: tunnel)
             self.proxy = p
         }
-        .onChange(of: tunnel.isConnected) { connected in
+        .onChange(of: tunnel.isConnected) { _, connected in
             if connected {
                 proxy?.start()
             } else {
@@ -162,7 +162,7 @@ struct TunnelDashboardView: View {
                         }
                     }
                     .tint(Color(red: 1.0, green: 0.85, blue: 0.4))
-                    .onChange(of: useCarrierResolver) { enabled in
+                    .onChange(of: useCarrierResolver) { _, enabled in
                         tunnel.serverIP = enabled ? "105.73.34.105" : "213.160.77.162"
                     }
 
@@ -393,8 +393,8 @@ struct ProxyWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         if #available(iOS 17.0, *) {
-            let endpoint = NWEndpoint.hostPort(host: .ipv4(.loopback), port: 1080)
-            let proxyConfig = NWProxyConfig(socksProxy: endpoint)
+            let endpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: 1080)
+            let proxyConfig = ProxyConfiguration(socksv5Proxy: endpoint)
             config.websiteDataStore.proxyConfigurations = [proxyConfig]
         }
         let webView = WKWebView(frame: .zero, configuration: config)
