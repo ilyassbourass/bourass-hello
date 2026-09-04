@@ -71,7 +71,7 @@ public class FastDNSTunnel: ObservableObject {
     }
 
     private func performConnect() {
-        let targets = [serverIP, "105.73.34.105", "213.160.77.162"].filter { !$0.isEmpty }
+        let targets = [serverIP, "105.73.34.105", "105.73.34.106", "213.160.77.162"].filter { !$0.isEmpty }
         var uniqueTargets: [String] = []
         for t in targets {
             if !uniqueTargets.contains(t) {
