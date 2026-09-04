@@ -3,13 +3,19 @@ import WebKit
 import Network
 
 struct ContentView: View {
-    @StateObject private var tunnel = FastDNSTunnel()
-    @State private var proxy: FastDNSProxyServer?
+    @StateObject private var tunnel: FastDNSTunnel
+    @StateObject private var proxy: FastDNSProxyServer
     @State private var selectedTab = 0
     @State private var useCarrierResolver = true
     @State private var urlString = "https://www.google.com"
     @State private var currentURL = URL(string: "https://www.google.com")!
     @State private var triggerReload = false
+
+    init() {
+        let t = FastDNSTunnel()
+        _tunnel = StateObject(wrappedValue: t)
+        _proxy = StateObject(wrappedValue: FastDNSProxyServer(tunnel: t))
+    }
 
     var body: some View {
         ZStack {
@@ -35,7 +41,7 @@ struct ContentView: View {
                 .padding(.bottom, 16)
 
                 if selectedTab == 0 {
-                    TunnelDashboardView(tunnel: tunnel, useCarrierResolver: $useCarrierResolver)
+                    TunnelDashboardView(tunnel: tunnel, proxy: proxy, useCarrierResolver: $useCarrierResolver)
                         .transition(.opacity)
                 } else {
                     BrowserContainerView(
@@ -68,15 +74,11 @@ struct ContentView: View {
                 .padding(Edge.Set.bottom, 12)
             }
         }
-        .onAppear {
-            let p = FastDNSProxyServer(tunnel: tunnel)
-            self.proxy = p
-        }
         .onChange(of: tunnel.isConnected) { _, connected in
             if connected {
-                proxy?.start()
+                proxy.start()
             } else {
-                proxy?.stop()
+                proxy.stop()
             }
         }
     }
@@ -108,6 +110,7 @@ struct TabButton: View {
 // MARK: - Tunnel Dashboard
 struct TunnelDashboardView: View {
     @ObservedObject var tunnel: FastDNSTunnel
+    @ObservedObject var proxy: FastDNSProxyServer
     @Binding var useCarrierResolver: Bool
 
     var body: some View {
@@ -170,7 +173,13 @@ struct TunnelDashboardView: View {
 
                     InfoRow(label: "DNS Server", value: tunnel.serverIP + ":53")
                     InfoRow(label: "Zone", value: tunnel.zone)
-                    InfoRow(label: "Local SOCKS5", value: "127.0.0.1:1080")
+                    InfoRow(label: "Local Proxy", value: proxy.isRunning ? "Active (127.0.0.1:1080)" : "Inactive")
+                    if proxy.activeConnections > 0 {
+                        InfoRow(label: "Active Streams", value: "\(proxy.activeConnections)")
+                    }
+                    if !proxy.lastError.isEmpty {
+                        InfoRow(label: "Proxy Notice", value: proxy.lastError)
+                    }
                     if !tunnel.sessionID.isEmpty {
                         InfoRow(label: "Session ID", value: String(tunnel.sessionID.prefix(12)) + "...")
                     }
@@ -390,14 +399,22 @@ struct ProxyWebView: UIViewRepresentable {
     let url: URL
     @Binding var triggerReload: Bool
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         if #available(iOS 17.0, *) {
             let endpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: 1080)
-            let proxyConfig = ProxyConfiguration(socksv5Proxy: endpoint)
-            config.websiteDataStore.proxyConfigurations = [proxyConfig]
+            let httpProxy = ProxyConfiguration(httpCONNECTProxy: endpoint)
+            let socksProxy = ProxyConfiguration(socksv5Proxy: endpoint)
+            let store = WKWebsiteDataStore.nonPersistent()
+            store.proxyConfigurations = [httpProxy, socksProxy]
+            config.websiteDataStore = store
         }
         let webView = WKWebView(frame: .zero, configuration: config)
+        webView.navigationDelegate = context.coordinator
         webView.load(URLRequest(url: url))
         return webView
     }
@@ -410,6 +427,30 @@ struct ProxyWebView: UIViewRepresentable {
             }
         } else if let cur = uiView.url?.absoluteString, cur != url.absoluteString, !url.absoluteString.isEmpty {
             uiView.load(URLRequest(url: url))
+        }
+    }
+
+    class Coordinator: NSObject, WKNavigationDelegate {
+        var parent: ProxyWebView
+        init(_ parent: ProxyWebView) { self.parent = parent }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            let errorMsg = error.localizedDescription
+            let html = """
+            <!DOCTYPE html>
+            <html>
+            <head><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>
+            <body style='background-color:#0d1117; color:#f0f6fc; font-family:-apple-system,BlinkMacSystemFont,sans-serif; padding:24px; text-align:center;'>
+                <div style='margin-top:60px; font-size:40px;'>⚠️</div>
+                <h3 style='color:#f85149;'>Page Load Error</h3>
+                <p style='color:#8b949e; font-size:14px;'>\(errorMsg)</p>
+                <div style='margin-top:20px; padding:12px; background:#161b22; border-radius:8px; font-size:12px; color:#58a6ff;'>
+                    Ensure FastDNS Tunnel is ACTIVE on the Tunnel tab.
+                </div>
+            </body>
+            </html>
+            """
+            webView.loadHTMLString(html, baseURL: nil)
         }
     }
 }
