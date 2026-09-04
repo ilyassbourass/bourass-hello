@@ -15,7 +15,7 @@ public class FastDNSTunnel: ObservableObject {
     @Published public var bytesSent: Int64 = 0
     @Published public var bytesReceived: Int64 = 0
 
-    public var serverIP: String = "213.160.77.162" // ns3.marocdns.uk or 105.73.34.105
+    public var serverIP: String = "105.73.34.105" // Operator resolver 105.73.34.105 or ns3 213.160.77.162
     public var serverPort: UInt16 = 53
     public var zone: String = "dns3.marocdns.uk"
     public var subId: String = FastDNSCrypto.defaultSubId
@@ -71,38 +71,56 @@ public class FastDNSTunnel: ObservableObject {
     }
 
     private func performConnect() {
-        DispatchQueue.main.async {
-            self.statusMessage = "Connecting to \(self.serverIP):\(self.serverPort)..."
-        }
-
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
-        guard fd >= 0 else {
-            DispatchQueue.main.async { self.statusMessage = "Socket creation failed" }
-            return
-        }
-
-        var tv = timeval(tv_sec: 10, tv_usec: 0)
-        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-
-        var addr = sockaddr_in()
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = serverPort.bigEndian
-        inet_pton(AF_INET, serverIP, &addr.sin_addr)
-
-        let connectRes = withUnsafePointer(to: &addr) { ptr in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
-                Darwin.connect(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+        let targets = [serverIP, "105.73.34.105", "213.160.77.162"].filter { !$0.isEmpty }
+        var uniqueTargets: [String] = []
+        for t in targets {
+            if !uniqueTargets.contains(t) {
+                uniqueTargets.append(t)
             }
         }
 
-        guard connectRes == 0 else {
-            close(fd)
+        var activeFd: Int32 = -1
+        var connectedIP = ""
+
+        for target in uniqueTargets {
+            DispatchQueue.main.async {
+                self.statusMessage = "Connecting to \(target):\(self.serverPort)..."
+            }
+
+            let fd = socket(AF_INET, SOCK_STREAM, 0)
+            guard fd >= 0 else { continue }
+
+            var tv = timeval(tv_sec: 5, tv_usec: 0)
+            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+            setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+
+            var addr = sockaddr_in()
+            addr.sin_family = sa_family_t(AF_INET)
+            addr.sin_port = serverPort.bigEndian
+            inet_pton(AF_INET, target, &addr.sin_addr)
+
+            let connectRes = withUnsafePointer(to: &addr) { ptr in
+                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                    Darwin.connect(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+
+            if connectRes == 0 {
+                activeFd = fd
+                connectedIP = target
+                break
+            } else {
+                close(fd)
+            }
+        }
+
+        guard activeFd >= 0 else {
             DispatchQueue.main.async { self.statusMessage = "TCP Connection failed" }
             return
         }
 
-        self.sockfd = fd
+        self.sockfd = activeFd
+        self.serverIP = connectedIP
 
         // 1. Build Handshake DNS Query
         DispatchQueue.main.async { self.statusMessage = "Sending Handshake..." }

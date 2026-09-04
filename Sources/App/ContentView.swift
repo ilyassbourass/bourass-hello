@@ -6,7 +6,7 @@ struct ContentView: View {
     @StateObject private var tunnel = FastDNSTunnel()
     @State private var proxy: FastDNSProxyServer?
     @State private var selectedTab = 0
-    @State private var useCarrierResolver = false
+    @State private var useCarrierResolver = true
     @State private var urlString = "https://www.google.com"
     @State private var currentURL = URL(string: "https://www.google.com")!
     @State private var triggerReload = false
@@ -408,6 +408,8 @@ struct ProxyWebView: UIViewRepresentable {
             DispatchQueue.main.async {
                 triggerReload = false
             }
+        } else if let cur = uiView.url?.absoluteString, cur != url.absoluteString, !url.absoluteString.isEmpty {
+            uiView.load(URLRequest(url: url))
         }
     }
 }
