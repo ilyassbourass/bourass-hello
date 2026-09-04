@@ -421,14 +421,16 @@ public class FastDNSTunnel: ObservableObject {
 
     // MARK: - Compression
     private func compressLZ4(data: Data) -> Data? {
-        var output = Data(count: data.count + 512)
+        let outCap = data.count + 512
+        var output = Data(count: outCap)
+        let inCount = data.count
         let count = output.withUnsafeMutableBytes { outBuf in
             data.withUnsafeBytes { inBuf in
                 compression_encode_buffer(
                     outBuf.bindMemory(to: UInt8.self).baseAddress!,
-                    output.count,
+                    outCap,
                     inBuf.bindMemory(to: UInt8.self).baseAddress!,
-                    data.count,
+                    inCount,
                     nil,
                     COMPRESSION_LZ4
                 )
@@ -440,14 +442,16 @@ public class FastDNSTunnel: ObservableObject {
     }
 
     private func decompressLZ4(data: Data) -> Data? {
-        var output = Data(count: 65536)
+        let maxOutputSize = 65536
+        var output = Data(count: maxOutputSize)
+        let inCount = data.count
         let count = output.withUnsafeMutableBytes { outBuf in
             data.withUnsafeBytes { inBuf in
                 compression_decode_buffer(
                     outBuf.bindMemory(to: UInt8.self).baseAddress!,
-                    65536,
+                    maxOutputSize,
                     inBuf.bindMemory(to: UInt8.self).baseAddress!,
-                    data.count,
+                    inCount,
                     nil,
                     COMPRESSION_LZ4
                 )
